@@ -99,7 +99,7 @@ import java.util.Collection;
  * <p>This lock supports a maximum of 2147483647 recursive locks by
  * the same thread. Attempts to exceed this limit result in
  * {@link Error} throws from locking methods.
- *
+ * ReentrantLock 实现是通过 sync，其实就是 AQS
  * @since 1.5
  * @author Doug Lea
  */
@@ -125,6 +125,7 @@ public class ReentrantLock implements Lock, java.io.Serializable {
         /**
          * Performs non-fair tryLock.  tryAcquire is implemented in
          * subclasses, but both need nonfair try for trylock method.
+         * false 代表获取锁失败
          */
         final boolean nonfairTryAcquire(int acquires) {
             final Thread current = Thread.currentThread();
@@ -136,6 +137,7 @@ public class ReentrantLock implements Lock, java.io.Serializable {
                 }
             }
             else if (current == getExclusiveOwnerThread()) {
+                // 记录锁的重入次数
                 int nextc = c + acquires;
                 if (nextc < 0) // overflow
                     throw new Error("Maximum lock count exceeded");
@@ -203,9 +205,12 @@ public class ReentrantLock implements Lock, java.io.Serializable {
          * acquire on failure.
          */
         final void lock() {
+            // 先尝试一下能不能获取到锁
             if (compareAndSetState(0, 1))
+                // 获取到锁，将当前线程设置为独占线程
                 setExclusiveOwnerThread(Thread.currentThread());
             else
+                // 没有获取到锁，
                 acquire(1);
         }
 

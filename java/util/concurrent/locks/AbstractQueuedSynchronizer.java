@@ -582,15 +582,15 @@ public abstract class AbstractQueuedSynchronizer
      */
     private Node enq(final Node node) {
         for (;;) {
-            Node t = tail;
-            if (t == null) { // Must initialize
+            Node pred = tail;
+            if (pred == null) { // Must initialize
                 if (compareAndSetHead(new Node()))
                     tail = head;
             } else {
-                node.prev = t;
-                if (compareAndSetTail(t, node)) {
-                    t.next = node;
-                    return t;
+                node.prev = pred;
+                if (compareAndSetTail(pred, node)) {
+                    pred.next = node;
+                    return pred;
                 }
             }
         }
@@ -605,6 +605,7 @@ public abstract class AbstractQueuedSynchronizer
     private Node addWaiter(Node mode) {
         Node node = new Node(Thread.currentThread(), mode);
         // Try the fast path of enq; backup to full enq on failure
+        // 先尝试一下快速入队
         Node pred = tail;
         if (pred != null) {
             node.prev = pred;
@@ -613,6 +614,7 @@ public abstract class AbstractQueuedSynchronizer
                 return node;
             }
         }
+        // 快速入队失败，正常入队
         enq(node);
         return node;
     }
@@ -1195,9 +1197,9 @@ public abstract class AbstractQueuedSynchronizer
      *        can represent anything you like.
      */
     public final void acquire(int arg) {
-        if (!tryAcquire(arg) &&
-            acquireQueued(addWaiter(Node.EXCLUSIVE), arg))
+        if (!tryAcquire(arg) && acquireQueued(addWaiter(Node.EXCLUSIVE), arg)) {
             selfInterrupt();
+        }
     }
 
     /**
@@ -1826,6 +1828,7 @@ public abstract class AbstractQueuedSynchronizer
      *
      * <p>This class is Serializable, but all fields are transient,
      * so deserialized conditions have no waiters.
+     * 每个 condition 都有一个自己的等待队列
      */
     public class ConditionObject implements Condition, java.io.Serializable {
         private static final long serialVersionUID = 1173984872572414699L;
