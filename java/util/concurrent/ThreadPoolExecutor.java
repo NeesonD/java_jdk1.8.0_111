@@ -909,9 +909,11 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
                 if (wc >= CAPACITY ||
                     wc >= (core ? corePoolSize : maximumPoolSize))
                     return false;
+                // cas 添加 WorkerCount
                 if (compareAndIncrementWorkerCount(c))
                     break retry;
                 c = ctl.get();  // Re-read ctl
+                // 如果线程池的状态没有改变，就一直执行小循环；有改变，则执行大循环
                 if (runStateOf(c) != rs)
                     continue retry;
                 // else CAS failed due to workerCount change; retry inner loop
@@ -926,6 +928,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
             final Thread t = w.thread;
             if (t != null) {
                 final ReentrantLock mainLock = this.mainLock;
+                // 这里加锁是为了把 worker 扔到 hashSet 里面
                 mainLock.lock();
                 try {
                     // Recheck while holding lock.
@@ -947,6 +950,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
                     mainLock.unlock();
                 }
                 if (workerAdded) {
+                    // 这里开始执行
                     t.start();
                     workerStarted = true;
                 }
@@ -1062,9 +1066,8 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
             }
 
             try {
-                Runnable r = timed ?
-                    workQueue.poll(keepAliveTime, TimeUnit.NANOSECONDS) :
-                    workQueue.take();
+                // 如果线程池大于 corePoolSize，则有超时获取；如果小于则阻塞获取
+                Runnable r = timed ? workQueue.poll(keepAliveTime, TimeUnit.NANOSECONDS) : workQueue.take();
                 if (r != null)
                     return r;
                 timedOut = true;
@@ -1124,6 +1127,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
         w.unlock(); // allow interrupts
         boolean completedAbruptly = true;
         try {
+            // 阻塞获取任务
             while (task != null || (task = getTask()) != null) {
                 w.lock();
                 // If pool is stopping, ensure thread is interrupted;
@@ -1157,6 +1161,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
             }
             completedAbruptly = false;
         } finally {
+            // 清理 worker
             processWorkerExit(w, completedAbruptly);
         }
     }
@@ -1292,6 +1297,11 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      *         {@code maximumPoolSize < corePoolSize}
      * @throws NullPointerException if {@code workQueue}
      *         or {@code threadFactory} or {@code handler} is null
+     *         corePoolSize、maximumPoolSize 弹性资源（执行者数量）
+     *         keepAliveTime 资源回收的策略
+     *         workQueue 任务池（这里能不能是其它的数据结构）
+     *         threadFactory  （生产执行者的工厂）
+     *         handler （任务过多，该如何拒绝）
      */
     public ThreadPoolExecutor(int corePoolSize,
                               int maximumPoolSize,
@@ -1353,19 +1363,24 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
          * and so reject the task.
          */
         int c = ctl.get();
+        // 只要没到 corePoolSize，进来一个 task 就会多一个 worker
         if (workerCountOf(c) < corePoolSize) {
-            if (addWorker(command, true))
+            // 重点
+            if (addWorker(command, true)){
                 return;
+            }
             c = ctl.get();
         }
+        // 如果工作者已经有 corePoolSize，就将任务扔到任务池
         if (isRunning(c) && workQueue.offer(command)) {
             int recheck = ctl.get();
-            if (! isRunning(recheck) && remove(command))
+            if (!isRunning(recheck) && remove(command)) {
                 reject(command);
-            else if (workerCountOf(recheck) == 0)
+            } else if (workerCountOf(recheck) == 0) {
                 addWorker(null, false);
-        }
-        else if (!addWorker(command, false))
+            }
+            // 入队失败就会再招聘 worker
+        } else if (!addWorker(command, false))
             reject(command);
     }
 
