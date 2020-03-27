@@ -141,6 +141,7 @@ public
 class Thread implements Runnable {
     /* Make sure registerNatives is the first thing <clinit> does. */
     private static native void registerNatives();
+    // 该方法主要的作用就是注册一些本地方法供 Thread 类使用，如 start0()，stop0() 等等
     static {
         registerNatives();
     }
@@ -738,6 +739,7 @@ class Thread implements Runnable {
      * @see     #start()
      * @see     #stop()
      * @see     #Thread(ThreadGroup, Runnable, String)
+     * JVM 中回调
      */
     @Override
     public void run() {

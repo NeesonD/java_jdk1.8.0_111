@@ -584,6 +584,7 @@ public abstract class AbstractQueuedSynchronizer
         for (;;) {
             Node pred = tail;
             if (pred == null) { // Must initialize
+                // 头部节点是空节点
                 if (compareAndSetHead(new Node()))
                     tail = head;
             } else {
@@ -614,7 +615,7 @@ public abstract class AbstractQueuedSynchronizer
                 return node;
             }
         }
-        // 快速入队失败，正常入队
+        // 快速入队失败，正常入队，通过 cas + 死循环入队
         enq(node);
         return node;
     }
@@ -806,6 +807,7 @@ public abstract class AbstractQueuedSynchronizer
             /*
              * Predecessor was cancelled. Skip over predecessors and
              * indicate retry.
+             * 这里会清掉无效节点
              */
             do {
                 node.prev = pred = pred.prev;
@@ -862,17 +864,22 @@ public abstract class AbstractQueuedSynchronizer
             boolean interrupted = false;
             for (;;) {
                 final Node p = node.predecessor();
+                // 如果前驱节点是 头部节点，则尝试获取锁
                 if (p == head && tryAcquire(arg)) {
+                    // 将当前节点设为头结点，并且清除头结点的状态
                     setHead(node);
+                    // 将之前的头结点的 next 设为空，让他能够 gc 掉
                     p.next = null; // help GC
                     failed = false;
                     return interrupted;
                 }
+                // 获取锁失败，判断是不是要进入阻塞状态
                 if (shouldParkAfterFailedAcquire(p, node) &&
                     parkAndCheckInterrupt())
                     interrupted = true;
             }
         } finally {
+            // 如果没有获取到锁，就会将自身状态改成已取消
             if (failed)
                 cancelAcquire(node);
         }
@@ -931,6 +938,7 @@ public abstract class AbstractQueuedSynchronizer
                 nanosTimeout = deadline - System.nanoTime();
                 if (nanosTimeout <= 0L)
                     return false;
+                // 只有大于 spinForTimeoutThreshold 才会去 park
                 if (shouldParkAfterFailedAcquire(p, node) &&
                     nanosTimeout > spinForTimeoutThreshold)
                     LockSupport.parkNanos(this, nanosTimeout);
@@ -1195,6 +1203,9 @@ public abstract class AbstractQueuedSynchronizer
      * @param arg the acquire argument.  This value is conveyed to
      *        {@link #tryAcquire} but is otherwise uninterpreted and
      *        can represent anything you like.
+     *            1. 先尝试获取锁
+     *            2. 没有获取到就通过 cas + 死循环入队
+     *            3.
      */
     public final void acquire(int arg) {
         if (!tryAcquire(arg) && acquireQueued(addWaiter(Node.EXCLUSIVE), arg)) {

@@ -129,6 +129,7 @@ public class ReentrantLock implements Lock, java.io.Serializable {
          */
         final boolean nonfairTryAcquire(int acquires) {
             final Thread current = Thread.currentThread();
+            // 获取锁的状态
             int c = getState();
             if (c == 0) {
                 if (compareAndSetState(0, acquires)) {
@@ -210,7 +211,7 @@ public class ReentrantLock implements Lock, java.io.Serializable {
                 // 获取到锁，将当前线程设置为独占线程
                 setExclusiveOwnerThread(Thread.currentThread());
             else
-                // 没有获取到锁，
+                // 没有获取到锁
                 acquire(1);
         }
 
@@ -232,6 +233,7 @@ public class ReentrantLock implements Lock, java.io.Serializable {
         /**
          * Fair version of tryAcquire.  Don't grant access unless
          * recursive call or no waiters or is first.
+         * 公平和非公平的区别在于 要不要判断等待队列里面是否有有效等待节点
          */
         protected final boolean tryAcquire(int acquires) {
             final Thread current = Thread.currentThread();
