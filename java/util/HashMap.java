@@ -335,6 +335,7 @@ public class HashMap<K,V> extends AbstractMap<K,V>
      */
     static final int hash(Object key) {
         int h;
+        // 扰乱函数，通过高位和低位异或运算得到的一个 hash 值
         return (key == null) ? 0 : (h = key.hashCode()) ^ (h >>> 16);
     }
 
@@ -444,6 +445,7 @@ public class HashMap<K,V> extends AbstractMap<K,V>
      *         or the load factor is nonpositive
      */
     public HashMap(int initialCapacity, float loadFactor) {
+        // 初始容量
         if (initialCapacity < 0)
             throw new IllegalArgumentException("Illegal initial capacity: " +
                                                initialCapacity);
@@ -452,7 +454,9 @@ public class HashMap<K,V> extends AbstractMap<K,V>
         if (loadFactor <= 0 || Float.isNaN(loadFactor))
             throw new IllegalArgumentException("Illegal load factor: " +
                                                loadFactor);
+        // 负载因子
         this.loadFactor = loadFactor;
+        // 阈值，超过这个值就需要扩容
         this.threshold = tableSizeFor(initialCapacity);
     }
 
@@ -462,6 +466,7 @@ public class HashMap<K,V> extends AbstractMap<K,V>
      *
      * @param  initialCapacity the initial capacity.
      * @throws IllegalArgumentException if the initial capacity is negative.
+     * =======>  核心点 1
      */
     public HashMap(int initialCapacity) {
         this(initialCapacity, DEFAULT_LOAD_FACTOR);
@@ -562,6 +567,7 @@ public class HashMap<K,V> extends AbstractMap<K,V>
      * @param hash hash for key
      * @param key the key
      * @return the node, or null if none
+     * 槽的定位，hash / cap ,因为 cap 是 2 次幂，所以除法变成 （cap - 1） & hash
      */
     final Node<K,V> getNode(int hash, Object key) {
         Node<K,V>[] tab; Node<K,V> first, e; int n; K k;
@@ -624,12 +630,15 @@ public class HashMap<K,V> extends AbstractMap<K,V>
     final V putVal(int hash, K key, V value, boolean onlyIfAbsent,
                    boolean evict) {
         Node<K,V>[] tab; Node<K,V> p; int n, i;
+        // 延迟初始化
         if ((tab = table) == null || (n = tab.length) == 0)
             n = (tab = resize()).length;
+        // 如果槽是空的，则将这个 node 放到槽中
         if ((p = tab[i = (n - 1) & hash]) == null)
             tab[i] = newNode(hash, key, value, null);
         else {
             Node<K,V> e; K k;
+            // 改 key 在槽的第一位
             if (p.hash == hash &&
                 ((k = p.key) == key || (key != null && key.equals(k))))
                 e = p;
@@ -637,12 +646,14 @@ public class HashMap<K,V> extends AbstractMap<K,V>
                 e = ((TreeNode<K,V>)p).putTreeVal(this, tab, hash, key, value);
             else {
                 for (int binCount = 0; ; ++binCount) {
+                    // 改 key 不在链表中
                     if ((e = p.next) == null) {
                         p.next = newNode(hash, key, value, null);
                         if (binCount >= TREEIFY_THRESHOLD - 1) // -1 for 1st
                             treeifyBin(tab, hash);
                         break;
                     }
+                    // key 在链表中
                     if (e.hash == hash &&
                         ((k = e.key) == key || (key != null && key.equals(k))))
                         break;
@@ -659,6 +670,7 @@ public class HashMap<K,V> extends AbstractMap<K,V>
         }
         ++modCount;
         if (++size > threshold)
+            // 扩容
             resize();
         afterNodeInsertion(evict);
         return null;
@@ -703,6 +715,7 @@ public class HashMap<K,V> extends AbstractMap<K,V>
             Node<K,V>[] newTab = (Node<K,V>[])new Node[newCap];
         table = newTab;
         if (oldTab != null) {
+            // 将老 tab 中的元素转移到新 tab 中
             for (int j = 0; j < oldCap; ++j) {
                 Node<K,V> e;
                 if ((e = oldTab[j]) != null) {
@@ -716,6 +729,8 @@ public class HashMap<K,V> extends AbstractMap<K,V>
                         Node<K,V> hiHead = null, hiTail = null;
                         Node<K,V> next;
                         do {
+                            // 因为扩容是两倍，之前和 & 1111，扩容之后就是 & 11111，下面这里就是 & 10000，所以通过原来 hashCode 是 0 还是 1
+                            // 就能够确定元素的新位置（原地、原地 + oldCap）
                             next = e.next;
                             if ((e.hash & oldCap) == 0) {
                                 if (loTail == null)
