@@ -126,6 +126,7 @@ public class ReentrantLock implements Lock, java.io.Serializable {
          * Performs non-fair tryLock.  tryAcquire is implemented in
          * subclasses, but both need nonfair try for trylock method.
          * false 代表获取锁失败
+         * 通过 state 这个状态值来判断是否加锁和重入次数
          */
         final boolean nonfairTryAcquire(int acquires) {
             final Thread current = Thread.currentThread();

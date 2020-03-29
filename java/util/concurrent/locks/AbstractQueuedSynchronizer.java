@@ -609,8 +609,13 @@ public abstract class AbstractQueuedSynchronizer
         // 先尝试一下快速入队
         Node pred = tail;
         if (pred != null) {
+            // 并发的时候，这个会出现多个 node 指向 pred，也就是尾分叉
+            // 这里一共有三步
             node.prev = pred;
+            // 第二步，设置尾节点，当尾节点设置成功之后，时间片运行完，会导致 pred.next = node 没有执行，也就是有 tail，但是
+            // pred.next = null ,所以后续唤醒节点的时候，是从 tail 节点向前查找
             if (compareAndSetTail(pred, node)) {
+                // 第三步，才是将 next 指向 tail
                 pred.next = node;
                 return node;
             }
@@ -646,6 +651,7 @@ public abstract class AbstractQueuedSynchronizer
          */
         int ws = node.waitStatus;
         if (ws < 0)
+            // 这里将头节点 waitStatus 设成了 0
             compareAndSetWaitStatus(node, ws, 0);
 
         /*
@@ -657,10 +663,12 @@ public abstract class AbstractQueuedSynchronizer
         Node s = node.next;
         if (s == null || s.waitStatus > 0) {
             s = null;
+            // 这里从尾节点开始找，这里是因为入队的操作有三步，不是原子的，会出现有 tail，但是 pred.next 并不是指向 tail
             for (Node t = tail; t != null && t != node; t = t.prev)
                 if (t.waitStatus <= 0)
                     s = t;
         }
+        // 如果头节点的下一个节点不为空，则唤醒下一个节点
         if (s != null)
             LockSupport.unpark(s.thread);
     }
@@ -864,8 +872,9 @@ public abstract class AbstractQueuedSynchronizer
             boolean interrupted = false;
             for (;;) {
                 final Node p = node.predecessor();
-                // 如果前驱节点是 头部节点，则尝试获取锁
+                // 如果前驱节点是 头部节点，则尝试获取锁(这里的目的是为了避免阻塞)
                 if (p == head && tryAcquire(arg)) {
+                    // 这里不会产生竞争
                     // 将当前节点设为头结点，并且清除头结点的状态
                     setHead(node);
                     // 将之前的头结点的 next 设为空，让他能够 gc 掉
@@ -876,6 +885,7 @@ public abstract class AbstractQueuedSynchronizer
                 // 获取锁失败，判断是不是要进入阻塞状态
                 if (shouldParkAfterFailedAcquire(p, node) &&
                     parkAndCheckInterrupt())
+                    // 如果是被中断了，这里会重置中断状态
                     interrupted = true;
             }
         } finally {
@@ -1205,7 +1215,7 @@ public abstract class AbstractQueuedSynchronizer
      *        can represent anything you like.
      *            1. 先尝试获取锁
      *            2. 没有获取到就通过 cas + 死循环入队
-     *            3.
+     *            3. 获取排队
      */
     public final void acquire(int arg) {
         if (!tryAcquire(arg) && acquireQueued(addWaiter(Node.EXCLUSIVE), arg)) {
@@ -1273,6 +1283,7 @@ public abstract class AbstractQueuedSynchronizer
     public final boolean release(int arg) {
         if (tryRelease(arg)) {
             Node h = head;
+            // 只要有等待者，就不会为 0
             if (h != null && h.waitStatus != 0)
                 unparkSuccessor(h);
             return true;
